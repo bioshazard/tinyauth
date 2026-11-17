@@ -42,7 +42,7 @@ COPY ./internal ./internal
 COPY ./pkg ./pkg
 COPY --from=frontend-builder /frontend/dist ./internal/assets/dist
 
-RUN CGO_ENABLED=0 go build -tags "${BUILD_TAGS}" -ldflags "${LDFLAGS} \
+RUN CGO_ENABLED=0 go build -p 2 -tags "${BUILD_TAGS}" -ldflags "${LDFLAGS} \
     -X github.com/tinyauthapp/tinyauth/internal/model.Version=${VERSION} \
     -X github.com/tinyauthapp/tinyauth/internal/model.CommitHash=${COMMIT_HASH} \
     -X github.com/tinyauthapp/tinyauth/internal/model.BuildTimestamp=${BUILD_TIMESTAMP}" \
@@ -72,3 +72,8 @@ ENV PATH=$PATH:/tinyauth
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD ["tinyauth", "healthcheck"]
 
 ENTRYPOINT ["tinyauth"]
+
+# Run the complete backend checks before publishing the fork image.
+FROM builder AS fork-validation
+RUN go test -p 2 ./...
+RUN go vet -p 2 ./...
