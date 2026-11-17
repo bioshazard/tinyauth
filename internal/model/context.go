@@ -22,14 +22,24 @@ const (
 	ProviderTailscale
 )
 
+type HouseholdIdentity struct {
+	PersonID string   `json:"person_id"`
+	Provider string   `json:"provider"`
+	Username string   `json:"username,omitempty"`
+	Subject  string   `json:"subject,omitempty"`
+	Groups   []string `json:"groups,omitempty"`
+}
+
 type UserContext struct {
-	Authenticated bool
-	Provider      ProviderType
-	AuthTime      int64
-	Local         *LocalContext
-	OAuth         *OAuthContext
-	LDAP          *LDAPContext
-	Tailscale     *TailscaleContext
+	ExpectedPersonID *string
+	Household        *HouseholdIdentity
+	Authenticated    bool
+	Provider         ProviderType
+	AuthTime         int64
+	Local            *LocalContext
+	OAuth            *OAuthContext
+	LDAP             *LDAPContext
+	Tailscale        *TailscaleContext
 }
 
 type BaseContext struct {

@@ -125,7 +125,7 @@ func (controller *ProxyController) proxyHandler(c *gin.Context) {
 		TrustedProxiesConfigured: controller.runtime.TrustedProxiesConfigured,
 	}
 
-	if controller.policyEngine.Evaluate(service.RuleIPBypassed, aclsCtx) {
+	if !controller.config.Household.Enabled && controller.policyEngine.Evaluate(service.RuleIPBypassed, aclsCtx) {
 		controller.setHeaders(c, acls)
 		c.JSON(200, gin.H{
 			"status":  200,
@@ -161,7 +161,7 @@ func (controller *ProxyController) proxyHandler(c *gin.Context) {
 		return
 	}
 
-	if controller.policyEngine.Evaluate(service.RuleAuthEnabled, aclsCtx) {
+	if !controller.config.Household.Enabled && controller.policyEngine.Evaluate(service.RuleAuthEnabled, aclsCtx) {
 		controller.log.App.Debug().Msg("Authentication is disabled for this resource, allowing access without authentication")
 		controller.setHeaders(c, acls)
 		c.JSON(200, gin.H{
@@ -184,6 +184,24 @@ func (controller *ProxyController) proxyHandler(c *gin.Context) {
 	}
 
 	aclsCtx.UserContext = userContext
+
+	if userContext.Authenticated && controller.config.Household.Enabled {
+		host := strings.ToLower(strings.TrimSuffix(proxyCtx.Host, "."))
+		if h, _, err := net.SplitHostPort(host); err == nil {
+			host = h
+		}
+		if err := service.ResolveHousehold(controller.config, userContext, controller.config.Household.ProxyGroups[host]); err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"status": 403, "message": "Forbidden"})
+			return
+		}
+		c.Header("Remote-User", utils.SanitizeHeader(userContext.GetUsername()))
+		c.Header("Remote-Name", utils.SanitizeHeader(userContext.GetName()))
+		c.Header("Remote-Email", utils.SanitizeHeader(userContext.GetEmail()))
+		c.Header("Remote-Groups", utils.SanitizeHeader(strings.Join(userContext.Household.Groups, ",")))
+		c.Header("Remote-Sub", utils.SanitizeHeader(userContext.Household.PersonID))
+		c.JSON(http.StatusOK, gin.H{"status": 200, "message": "Authenticated"})
+		return
+	}
 
 	if userContext.Authenticated {
 		if !controller.policyEngine.Evaluate(service.RuleUserAllowed, aclsCtx) {

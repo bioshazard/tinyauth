@@ -1,0 +1,67 @@
+appUrl: https://auth.localtest.me:28443
+labelProvider: none
+analytics:
+  enabled: false
+resources:
+  enabled: false
+database:
+  driver: memory
+auth:
+  subdomainsEnabled: true
+  secureCookie: true
+ldap:
+  address: ldap://lldap:3890
+  bindDn: uid=auth-reader,ou=people,dc=household,dc=test
+  bindPassword: LocalDemo-auth-reader-12345
+  baseDn: dc=household,dc=test
+  searchFilter: (&(objectClass=person)(uid=%s))
+  groupSearchFilter: (&(objectClass=groupOfNames)(member=%s))
+  groupCacheTTL: 1
+oauth:
+  providers:
+    demo-google:
+      name: 'Mock Google — local demo only'
+      clientId: mock-google-client
+      clientSecret: mock-google-secret
+      authUrl: http://localhost:28080/mock/authorize
+      tokenUrl: http://demo:8080/mock/token
+      userinfoUrl: http://demo:8080/mock/userinfo
+      scopes: [openid, email, profile]
+    demo-other:
+      name: 'Other provider — collision test'
+      clientId: mock-other-client
+      clientSecret: mock-other-secret
+      authUrl: http://localhost:28080/mock/authorize
+      tokenUrl: http://demo:8080/mock/token
+      userinfoUrl: http://demo:8080/mock/userinfo
+      scopes: [openid, email, profile]
+oidc:
+  legacySubEnabled: false
+  clients:
+    immich-demo:
+      name: 'Immich-style test client'
+      clientId: immich-demo
+      clientSecret: local-demo-oidc-secret
+      trusted: true
+      trustedRedirectURIs:
+        - http://localhost:28080/callback
+        - app.immich:///oauth-callback
+    admin-demo:
+      name: 'Admin app — should deny wife'
+      clientId: admin-demo
+      clientSecret: local-demo-admin-client-secret
+      trusted: true
+      trustedRedirectURIs: [http://localhost:28080/callback]
+household:
+  enabled: true
+  personAttribute: auth-person-id
+  identityAttribute: auth-identities
+  providerIssuers:
+    demo-google: https://accounts.google.com
+    demo-other: https://other.example.invalid
+  proxyGroups:
+    whoami.localtest.me: [household]
+    denied.localtest.me: [household-admin]
+  clientGroups:
+    immich-demo: [household]
+    admin-demo: [household-admin]

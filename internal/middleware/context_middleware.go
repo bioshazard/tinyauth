@@ -161,6 +161,14 @@ func (m *ContextMiddleware) cookieAuth(ctx context.Context, uuid string, ip stri
 		return nil, nil, fmt.Errorf("error creating user context from session: %w", err)
 	}
 
+	if m.config != nil && m.config.Household.Enabled {
+		person, exists := m.auth.HouseholdSessionPerson(uuid)
+		if !exists {
+			return nil, nil, fmt.Errorf("household session pin expired; authenticate again")
+		}
+		userContext.ExpectedPersonID = &person
+	}
+
 	if userContext.Provider == model.ProviderLocal &&
 		userContext.Local.TOTPPending {
 		return userContext, nil, nil

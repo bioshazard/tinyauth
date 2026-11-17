@@ -1,0 +1,22 @@
+# PROTOTYPE synthetic people. Applied to scratch LLDAP only.
+groups: [household, household-admin]
+users:
+  - id: wife
+    email: wife@household.test
+    displayName: Demo Wife
+    personId: 724045e4-90b1-4abd-b2d4-9c0e605081c5
+    identities:
+      - [https://accounts.google.com, google-wife-001]
+    groups: [household]
+  - id: other
+    email: other@household.test
+    displayName: Other Person
+    personId: 23b73739-81a6-4f27-9b27-49fcf75bc67a
+    identities: []
+    groups: []
+  - id: auth-reader
+    email: auth-reader@household.test
+    displayName: Directory reader
+    personId: 39c64e16-f19c-4f28-8e8c-1722440e698a
+    identities: []
+    groups: [lldap_strict_readonly]

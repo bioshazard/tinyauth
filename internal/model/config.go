@@ -103,7 +103,17 @@ func NewDefaultConfiguration(runtimeEnv RuntimeEnv) *Config {
 	return cfg
 }
 
+type HouseholdConfig struct {
+	ProxyGroups       map[string][]string `description:"ForwardAuth hostname to required directory groups." yaml:"proxyGroups,omitempty"`
+	Enabled           bool                `description:"Resolve authenticated identities through LDAP." yaml:"enabled,omitempty"`
+	PersonAttribute   string              `yaml:"personAttribute,omitempty"`
+	IdentityAttribute string              `yaml:"identityAttribute,omitempty"`
+	ProviderIssuers   map[string]string   `yaml:"providerIssuers,omitempty"`
+	ClientGroups      map[string][]string `yaml:"clientGroups,omitempty"`
+}
+
 type Config struct {
+	Household     HouseholdConfig `yaml:"household,omitempty"`
 	AppURL        string          `description:"The base URL where the app is hosted." yaml:"appUrl,omitempty"`
 	ConfigFile    string          `description:"Path to config file." yaml:"-" gen:"include"`
 	LabelProvider string          `description:"Label provider to use for ACLs (auto, docker, kubernetes or none to disable). auto detects the environment." yaml:"labelProvider,omitempty"`

@@ -72,9 +72,10 @@ type AuthService struct {
 	dummyHash string
 
 	caches struct {
-		login *cache.CacheStore[LoginAttempt]
-		oauth *cache.CacheStore[OAuthPendingSession]
-		ldap  *cache.CacheStore[[]string]
+		household *cache.CacheStore[string]
+		login     *cache.CacheStore[LoginAttempt]
+		oauth     *cache.CacheStore[OAuthPendingSession]
+		ldap      *cache.CacheStore[[]string]
 	}
 }
 
@@ -123,6 +124,7 @@ func NewAuthService(i AuthServiceInput) (*AuthService, error) {
 	service.caches.oauth = oauthCache
 	service.caches.login = loginCache
 	service.caches.ldap = ldapCache
+	service.caches.household = cache.NewCacheStore[string](1024)
 
 	i.Ding.Go(func(ctx context.Context) {
 		ticker := time.NewTicker(1 * time.Minute)
@@ -134,6 +136,7 @@ func NewAuthService(i AuthServiceInput) (*AuthService, error) {
 				service.caches.oauth.Sweep()
 				service.caches.login.Sweep()
 				service.caches.ldap.Sweep()
+				service.caches.household.Sweep()
 			case <-ctx.Done():
 				return
 			}
@@ -400,6 +403,15 @@ func (auth *AuthService) CreateSession(ctx context.Context, data repository.Sess
 		return nil, fmt.Errorf("failed to create session entry: %w", err)
 	}
 
+	if auth.config.Household.Enabled {
+		binding := &model.HouseholdIdentity{Provider: data.Provider, Username: data.Username, Subject: data.OAuthSub}
+		person, err := lookupHousehold(auth.config, binding, nil)
+		pinned := ""
+		if err == nil {
+			pinned = person.Household.PersonID
+		}
+		auth.caches.household.Set(session.UUID, pinned, time.Duration(expiry)*time.Second)
+	}
 	return &http.Cookie{
 		Name:     auth.runtime.SessionCookieName,
 		Value:    session.UUID,
@@ -675,4 +687,10 @@ func (auth *AuthService) getCookieDomain() string {
 		return ""
 	}
 	return auth.runtime.CookieDomain
+}
+
+// HouseholdSessionPerson pins SSO sessions to the logical person at authentication.
+// Missing pins fail closed; reauthentication reconstructs them from the directory.
+func (auth *AuthService) HouseholdSessionPerson(sessionID string) (string, bool) {
+	return auth.caches.household.Get(sessionID)
 }

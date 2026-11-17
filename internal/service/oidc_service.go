@@ -100,27 +100,28 @@ type ClaimSet struct {
 // We use this struct as both a response struct and a struct to store userinfo
 // in the database
 type UserinfoResponse struct {
-	Sub                 string              `json:"sub"`
-	Name                string              `json:"name,omitempty"`
-	GivenName           string              `json:"given_name,omitempty"`
-	FamilyName          string              `json:"family_name,omitempty"`
-	MiddleName          string              `json:"middle_name,omitempty"`
-	Nickname            string              `json:"nickname,omitempty"`
-	Profile             string              `json:"profile,omitempty"`
-	Picture             string              `json:"picture,omitempty"`
-	Website             string              `json:"website,omitempty"`
-	Gender              string              `json:"gender,omitempty"`
-	Birthdate           string              `json:"birthdate,omitempty"`
-	Zoneinfo            string              `json:"zoneinfo,omitempty"`
-	Locale              string              `json:"locale,omitempty"`
-	Email               string              `json:"email,omitempty"`
-	PreferredUsername   string              `json:"preferred_username,omitempty"`
-	Groups              []string            `json:"groups,omitempty"`
-	EmailVerified       bool                `json:"email_verified,omitempty"`
-	PhoneNumber         string              `json:"phone_number,omitempty"`
-	PhoneNumberVerified *bool               `json:"phone_number_verified,omitempty"`
-	Address             *model.AddressClaim `json:"address,omitempty"`
-	UpdatedAt           int64               `json:"updated_at"`
+	Household           *model.HouseholdIdentity `json:"_household,omitempty"`
+	Sub                 string                   `json:"sub"`
+	Name                string                   `json:"name,omitempty"`
+	GivenName           string                   `json:"given_name,omitempty"`
+	FamilyName          string                   `json:"family_name,omitempty"`
+	MiddleName          string                   `json:"middle_name,omitempty"`
+	Nickname            string                   `json:"nickname,omitempty"`
+	Profile             string                   `json:"profile,omitempty"`
+	Picture             string                   `json:"picture,omitempty"`
+	Website             string                   `json:"website,omitempty"`
+	Gender              string                   `json:"gender,omitempty"`
+	Birthdate           string                   `json:"birthdate,omitempty"`
+	Zoneinfo            string                   `json:"zoneinfo,omitempty"`
+	Locale              string                   `json:"locale,omitempty"`
+	Email               string                   `json:"email,omitempty"`
+	PreferredUsername   string                   `json:"preferred_username,omitempty"`
+	Groups              []string                 `json:"groups,omitempty"`
+	EmailVerified       bool                     `json:"email_verified,omitempty"`
+	PhoneNumber         string                   `json:"phone_number,omitempty"`
+	PhoneNumberVerified *bool                    `json:"phone_number_verified,omitempty"`
+	Address             *model.AddressClaim      `json:"address,omitempty"`
+	UpdatedAt           int64                    `json:"updated_at"`
 }
 
 type TokenResponse struct {
@@ -479,6 +480,7 @@ func (service *OIDCService) CreateCode(req AuthorizeRequest, userContext model.U
 
 func (service *OIDCService) userinfoFromContext(userContext model.UserContext, sub string) UserinfoResponse {
 	userInfo := UserinfoResponse{
+		Household:         userContext.Household,
 		Sub:               sub,
 		Name:              userContext.GetName(),
 		Email:             userContext.GetEmail(),
@@ -511,6 +513,9 @@ func (service *OIDCService) userinfoFromContext(userContext model.UserContext, s
 		userInfo.Groups = userContext.OAuth.Groups
 	}
 
+	if userContext.Household != nil {
+		userInfo.Groups = userContext.Household.Groups
+	}
 	return userInfo
 }
 
@@ -620,6 +625,9 @@ func (service *OIDCService) generateIDToken(client model.OIDCClientConfig, user 
 }
 
 func (service *OIDCService) GenerateAccessToken(ctx context.Context, client model.OIDCClientConfig, codeEntry AuthorizeCodeEntry, authTime int64) (*TokenResponse, error) {
+	if err := service.RevalidateHousehold(&codeEntry.Userinfo, client.ClientID); err != nil {
+		return nil, err
+	}
 	idToken, err := service.generateIDToken(client, codeEntry.Userinfo, codeEntry.Scope, codeEntry.Nonce, &authTime)
 
 	if err != nil {
@@ -699,6 +707,13 @@ func (service *OIDCService) RefreshAccessToken(ctx context.Context, refreshToken
 		return nil, err
 	}
 
+	if err := service.RevalidateHousehold(&userInfo, clientId); err != nil {
+		return nil, ErrTokenExpired
+	}
+	updatedInfo, err := json.Marshal(userInfo)
+	if err != nil {
+		return nil, err
+	}
 	// TODO: store auth time in the database so we can include it in the new ID token, for now we omit it
 	idToken, err := service.generateIDToken(model.OIDCClientConfig{
 		ClientID: entry.ClientID,
@@ -732,7 +747,7 @@ func (service *OIDCService) RefreshAccessToken(ctx context.Context, refreshToken
 		TokenExpiresAt:        tokenExpiresAt,
 		RefreshTokenExpiresAt: refreshTokenExpiresAt,
 		Nonce:                 entry.Nonce,
-		UserinfoJson:          entry.UserinfoJson,
+		UserinfoJson:          string(updatedInfo),
 	})
 
 	if err != nil {
@@ -902,6 +917,9 @@ func (service *OIDCService) hashAndEncodePKCE(codeVerifier string) string {
 // We will just create a uuid out of the username and client name which remains stable,
 // but if username or client name changes then sub changes too.
 func (service *OIDCService) CreateSub(userContext model.UserContext, clientId string) string {
+	if userContext.Household != nil {
+		return utils.GenerateUUID(fmt.Sprintf("household:%q:%q", userContext.Household.PersonID, clientId))
+	}
 	sub := fmt.Sprintf("%q:%q:%q", userContext.GetProviderID(), userContext.GetUsername(), clientId)
 
 	// The old sub created by the username and client ID is insecure

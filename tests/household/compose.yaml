@@ -1,0 +1,38 @@
+name: household-auth-fork-test
+services:
+  lldap:
+    image: lldap/lldap@sha256:2a8454b668c1aba7157e832eab0e242e1e7eb5fb7591d7e7774ba05286511ca8
+    environment:
+      LLDAP_JWT_SECRET: local-demo-only-jwt-secret-11111111111111111111
+      LLDAP_KEY_SEED: local-demo-only-key-seed-22222222222222222222
+      LLDAP_LDAP_USER_PASS: LocalDemo-admin-12345
+      LLDAP_LDAP_BASE_DN: dc=household,dc=test
+    ports:
+      - '127.0.0.1:27171:17170'
+    volumes:
+      - lldap-data:/data
+  tinyauth:
+    image: household-auth-tinyauth:test
+    build:
+      context: ../..
+      target: runner
+    command: ['--configfile', '/demo/tinyauth.yaml']
+    volumes:
+      - ./tinyauth.yaml:/demo/tinyauth.yaml:ro
+      - tinyauth-keys:/data
+    depends_on: [lldap]
+  demo:
+    build: ./app
+    networks:
+      default:
+        aliases: [auth.localtest.me]
+    volumes:
+      - ./tls:/tls:ro
+      - ./app:/app:ro
+      - ./directory.yaml:/demo/directory.yaml:ro
+    ports:
+      - '127.0.0.1:28080:8080'
+      - '127.0.0.1:28443:28443'
+volumes:
+  lldap-data:
+  tinyauth-keys:

@@ -435,6 +435,11 @@ func (controller *OIDCController) authorizeComplete(c *gin.Context) {
 		return
 	}
 
+	if err := controller.oidc.ResolveHousehold(userContext, authorizeReq.ClientID); err != nil {
+		c.JSON(403, gin.H{"error": "access_denied"})
+		return
+	}
+
 	// Create the sub to find and delete old sessions
 	sub := controller.oidc.CreateSub(*userContext, authorizeReq.ClientID)
 
@@ -756,6 +761,10 @@ func (controller *OIDCController) Userinfo(c *gin.Context) {
 		return
 	}
 
+	if err := controller.oidc.RevalidateHousehold(&userinfo, entry.ClientID); err != nil {
+		c.JSON(401, gin.H{"error": "invalid_grant"})
+		return
+	}
 	c.JSON(200, controller.oidc.CompileUserinfo(userinfo, entry.Scope))
 }
 
